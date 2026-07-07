@@ -60,14 +60,16 @@ class TimeeClassifier:
     @classmethod
     def from_pretrained(
         cls,
-        path: Union[str, Path],
+        path: Union[str, Path] = "liamsbhoo/timee",
         device: Union[str, torch.device, None] = None,
         use_ensemble: bool = True,
     ) -> "TimeeClassifier":
-        """Load a pretrained TimeeClassifier from a checkpoint directory.
+        """Load a pretrained TimeeClassifier.
 
         Args:
-            path: Directory containing ``model.safetensors``.
+            path: Local directory containing ``model.safetensors``, or a
+                  HuggingFace Hub repo ID (e.g. ``"liamsbhoo/timee"``).
+                  Defaults to the official checkpoint.
             device: Torch device for inference. Defaults to auto-detection (CUDA > MPS > CPU).
             use_ensemble: If True (default), use the 4-member preprocessing ensemble from the
                 paper (interpolate×{256,512} × {raw, first_difference}).
@@ -80,10 +82,15 @@ class TimeeClassifier:
             device = _infer_device()
         device = torch.device(device) if isinstance(device, str) else device
 
-        path = Path(path)
-        weights_path = path / "model.safetensors"
-        if not weights_path.exists():
-            raise FileNotFoundError(f"model.safetensors not found in {path}")
+        local = Path(path)
+        if local.is_dir():
+            weights_path = local / "model.safetensors"
+            if not weights_path.exists():
+                raise FileNotFoundError(f"model.safetensors not found in {local}")
+        else:
+            from huggingface_hub import hf_hub_download
+
+            weights_path = hf_hub_download(repo_id=str(path), filename="model.safetensors")
 
         from safetensors.torch import load_file
 

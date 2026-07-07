@@ -20,7 +20,7 @@ Requirements: Python ≥ 3.10, PyTorch ≥ 2.0.
 from timee import TimeeClassifier
 import numpy as np
 
-clf = TimeeClassifier.from_pretrained("path/to/checkpoint/")
+clf = TimeeClassifier.from_pretrained()  # downloads from HuggingFace on first use
 
 # X: (n_samples, n_channels, seq_len) float32
 X_train = np.random.randn(20, 1, 256).astype(np.float32)
@@ -41,7 +41,7 @@ Loads a checkpoint from a directory containing `model.safetensors`.
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `path` | required | Path to checkpoint directory |
+| `path` | `"liamsbhoo/timee"` | Local directory or HuggingFace Hub repo ID. |
 | `device` | auto | `"cuda"`, `"cpu"`, or `torch.device`. Defaults to CUDA > MPS > CPU. |
 | `use_ensemble` | `True` | 4-member preprocessing ensemble (interpolate×{256,512} × {raw, diff}). Set `False` for faster single-pass inference. |
 
