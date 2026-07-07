@@ -3,12 +3,25 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "timee"
+name = "timee-ts"
 version = "0.1.0"
 description = "End-to-end time series classification via in-context learning"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
+authors = [
+    { name = "Liam Shi Bin Hoo", email = "hoos@tf.uni-freiburg.de" },
+    { name = "Jaris Küken", email = "kuekenj@informatik.uni-freiburg.de" },
+]
+keywords = ["time-series", "classification", "in-context learning"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
     "torch>=2.0",
     "numpy>=1.24",
