@@ -9,7 +9,7 @@ training or fine-tuning required.
 ## Installation
 
 ```bash
-pip install timee
+pip install timee-ts
 ```
 
 Requirements: Python ≥ 3.10, PyTorch ≥ 2.0.
