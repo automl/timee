@@ -6,10 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
-from timee.model.util import (
-    activation_from_str,
-    validate_rope,
-)
+from timee.model.util import validate_rope
 
 
 class Patch(nn.Module):
@@ -115,13 +112,11 @@ class PatchEncoder(nn.Module):
 
 
 class DecoderMLP(nn.Module):
-    def __init__(
-        self, d_model: int, hidden_dim: int, output_dim: int, activation: str, dropout: float
-    ):
+    def __init__(self, d_model: int, hidden_dim: int, output_dim: int, dropout: float):
         super().__init__()
         self.fc1 = nn.Linear(d_model, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, output_dim)
-        self.activation = activation_from_str(activation)
+        self.activation = nn.GELU()
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -133,11 +128,11 @@ class DecoderMLP(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, d_model: int, hidden_dim: int, activation: str, dropout: float):
+    def __init__(self, d_model: int, hidden_dim: int, dropout: float):
         super().__init__()
         self.fc1 = nn.Linear(d_model, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, d_model)
-        self.activation = activation_from_str(activation)
+        self.activation = nn.GELU()
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -290,13 +285,12 @@ class TransformerEncoderLayer(nn.Module):
         d_kv: int,
         mlp_hidden_dim: int,
         dropout: float,
-        activation: str,
         use_rope: bool,
     ):
         super().__init__()
         self.mha = MHA(n_heads, d_model, d_kv, dropout, use_rope)
         self.mha_layernorm = nn.LayerNorm(d_model)
-        self.mlp = MLP(d_model, mlp_hidden_dim, activation, dropout)
+        self.mlp = MLP(d_model, mlp_hidden_dim, dropout)
         self.mlp_layernorm = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
 

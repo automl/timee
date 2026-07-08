@@ -132,9 +132,7 @@ class TimeeClassifier:
         n_classes: int,
     ) -> np.ndarray:
         inputs, targets = self._prepare_inputs(X_train, y_enc, X_test_batch)
-        logits = self._model(x=inputs, y=targets, eval_pos=len(X_train))[1].squeeze(0)[
-            :, :n_classes
-        ]
+        logits = self._model(x=inputs, y=targets, eval_pos=len(X_train)).squeeze(0)[:, :n_classes]
         return torch.softmax(logits, dim=1).cpu().numpy()
 
     def _forward_ovr(
@@ -150,7 +148,7 @@ class TimeeClassifier:
         for c in range(n_classes):
             targets_binary = torch.zeros_like(targets)
             targets_binary[:, :eval_pos] = (targets[:, :eval_pos] == c).long()
-            logits = self._model(x=inputs, y=targets_binary, eval_pos=eval_pos)[1].squeeze(0)[:, :2]
+            logits = self._model(x=inputs, y=targets_binary, eval_pos=eval_pos).squeeze(0)[:, :2]
             class_probs.append(torch.softmax(logits, dim=1).cpu().numpy()[:, 1])
         probabilities = np.column_stack(class_probs)
         probabilities /= probabilities.sum(axis=1, keepdims=True)

@@ -1,5 +1,3 @@
-from typing import Optional, Tuple
-
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -155,8 +153,7 @@ class TimeeMultivariateModel(TimeeModel):
         x: torch.Tensor,
         y: torch.Tensor,
         eval_pos: int,
-        labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[Optional[float], torch.Tensor]:
+    ) -> torch.Tensor:
         if x.ndim == 3:
             x = x.unsqueeze(-1)
 
@@ -190,14 +187,4 @@ class TimeeMultivariateModel(TimeeModel):
         for layer in self.icl_block:
             row_repr_BNDc = layer(x=row_repr_BNDc, attention_mask=icl_mask, position_ids=None)
 
-        logits = self.decoder_mlp(self.decoder_mlp_ln(row_repr_BNDc[:, n_train:]))
-
-        loss = None
-        if labels is not None:
-            labels_test = labels.to(torch.long)[:, n_train:]
-            loss = nn.CrossEntropyLoss()(
-                rearrange(logits, "b n c -> (b n) c"),
-                rearrange(labels_test, "b n -> (b n)"),
-            )
-
-        return loss, logits
+        return self.decoder_mlp(self.decoder_mlp_ln(row_repr_BNDc[:, n_train:]))

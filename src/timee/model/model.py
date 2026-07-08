@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -85,7 +85,6 @@ class TimeeModel(nn.Module):
             d_kv=d_kv,
             mlp_hidden_dim=mlp_hidden_dim,
             dropout=dropout_rate,
-            activation="gelu",
         )
 
         self.encoder_horizontal = nn.ModuleList(
@@ -120,7 +119,6 @@ class TimeeModel(nn.Module):
                     d_kv=d_kv_icl,
                     mlp_hidden_dim=mlp_hidden_dim,
                     dropout=dropout_rate,
-                    activation="gelu",
                     use_rope=False,
                 )
                 for _ in range(n_icl_layers)
@@ -132,7 +130,6 @@ class TimeeModel(nn.Module):
             d_model=self.icl_dim,
             hidden_dim=decoder_mlp_hidden_dim,
             output_dim=n_max_classes,
-            activation="gelu",
             dropout=dropout_rate,
         )
 
@@ -165,18 +162,15 @@ class TimeeModel(nn.Module):
         x: torch.Tensor,
         y: torch.Tensor,
         eval_pos: int,
-        labels: Optional[torch.Tensor] = None,
-    ) -> Tuple[Optional[float], torch.Tensor]:
+    ) -> torch.Tensor:
         """
         Args:
             x:        (B, N, S) float — N series per episode (support first, then queries).
             y:        (B, N) int — class labels; query positions (>= eval_pos) are ignored.
             eval_pos: number of support series; x[:, :eval_pos] are labeled,
                       x[:, eval_pos:] are the queries to classify.
-            labels:   optional ground-truth for computing cross-entropy loss on queries.
         Returns:
-            (loss, logits): loss is None when labels is None;
-                            logits shape is (B, N − eval_pos, n_max_classes).
+            logits: (B, N − eval_pos, n_max_classes).
         """
         x_BNS = x
         y_BN = y
@@ -277,14 +271,4 @@ class TimeeModel(nn.Module):
         for layer in self.icl_block:
             row_repr_BNDc = layer(x=row_repr_BNDc, attention_mask=icl_mask, position_ids=None)
 
-        logits = self.decoder_mlp(self.decoder_mlp_ln(row_repr_BNDc[:, n_train:]))
-
-        loss = None
-        if labels is not None:
-            labels_test = labels.to(torch.long)[:, n_train:]
-            loss = nn.CrossEntropyLoss()(
-                rearrange(logits, "b n c -> (b n) c"),
-                rearrange(labels_test, "b n -> (b n)"),
-            )
-
-        return loss, logits
+        return self.decoder_mlp(self.decoder_mlp_ln(row_repr_BNDc[:, n_train:]))
