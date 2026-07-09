@@ -1,10 +1,12 @@
 # TIMEE: Time Series Classification via In-Context Learning
 
+[![arXiv](https://img.shields.io/badge/arXiv-2607.07500-b31b1b.svg)](https://arxiv.org/abs/2607.07500)
+[![HuggingFace](https://img.shields.io/badge/🤗%20HuggingFace-liamsbhoo%2Ftimee-yellow)](https://huggingface.co/liamsbhoo/timee)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 TIMEE is a pretrained transformer for time series classification. It classifies test
 series in a single forward pass given labeled training examples — no per-dataset
 training or fine-tuning required.
-
-**Paper:** *TIMEE: End-to-end Time Series Classification via In-Context Learning*
 
 ## Installation
 
@@ -54,8 +56,13 @@ Returns `(predictions, probabilities)`:
 ## Citation
 
 ```bibtex
-@inproceedings{timee2026,
-  title     = {TIMEE: End-to-end Time Series Classification via In-Context Learning},
-  year      = {2026},
+@misc{küken2026timeeendtoendtimeseries,
+      title={TimEE: End-to-end Time Series Classification via In-Context Learning},
+      author={Jaris Küken and Shi Bin Hoo and Martin Mráz and Frank Hutter and Lennart Purucker},
+      year={2026},
+      eprint={2607.07500},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2607.07500},
 }
 ```
