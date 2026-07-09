@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "timee-ts"
+version = "0.1.0"
+description = "End-to-end time series classification via in-context learning"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Liam Shi Bin Hoo", email = "hoos@tf.uni-freiburg.de" },
+    { name = "Jaris Küken", email = "kuekenj@informatik.uni-freiburg.de" },
+]
+keywords = ["time-series", "classification", "in-context learning"]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "einops>=0.7",
+    "safetensors>=0.4",
+    "scikit-learn>=1.3",
+    "huggingface_hub>=0.20",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "pre-commit",
+    "aeon",
+    "matplotlib",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/timee"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402"]
