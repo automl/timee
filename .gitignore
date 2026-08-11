@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Model checkpoints (hosted on HuggingFace, not tracked in git)
+*.safetensors

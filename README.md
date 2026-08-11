@@ -53,6 +53,25 @@ Returns `(predictions, probabilities)`:
 - `predictions`: `(n_test,)`, same type as `y_train`
 - `probabilities`: `(n_test, n_classes)`, rows sum to 1
 
+## Multivariate Support (beta)
+
+> **Note:** TIMEE is trained and evaluated as a univariate classifier — multivariate is not its focus (yet).
+
+As mentioned in the paper, TIMEE supports multivariate input through two mechanisms:
+1. **channel-independent**: each channel is classified separately and the per-channel class probabilities are averaged.
+2. **late-channel-mixing**: channels are embedded separately before going through an attention pooling layer (acting as a mixer).
+
+**Mechanism (1)** is already implemented in `TimeeClassifier`: pass `(n_samples, n_channels, seq_len)` input (use `n_channels=1` for the univariate case) and it averages over channels automatically.
+
+**Mechanism (2)** is implemented as `TimeeMultivariateClassifier`, which fuses channels via attention pooling and takes the same `(n_samples, n_channels, seq_len)` input.
+
+```python
+from timee import TimeeMultivariateClassifier
+
+clf = TimeeMultivariateClassifier.from_pretrained()
+predictions, probabilities = clf.predict(X_train, y_train, X_test)
+```
+
 ## Citation
 
 ```bibtex

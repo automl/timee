@@ -10,6 +10,7 @@ import torch
 from sklearn.preprocessing import LabelEncoder
 
 from timee.model.model import TimeeModel
+from timee.model.mv_adapter import TimeeMultivariateModel
 from timee.transforms import default_ensemble_transforms
 
 EnsembleTransform = Callable[[np.ndarray, np.ndarray], tuple[np.ndarray, np.ndarray]]
@@ -21,6 +22,23 @@ def _infer_device() -> torch.device:
     if torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
+
+def _resolve_weights_path(path: Union[str, Path]) -> Path:
+    """Resolve a checkpoint location to a local ``model.safetensors`` path.
+
+    Accepts a local directory containing ``model.safetensors`` or a HuggingFace Hub repo ID.
+    """
+    local = Path(path)
+    if local.is_dir():
+        weights_path = local / "model.safetensors"
+        if not weights_path.exists():
+            raise FileNotFoundError(f"model.safetensors not found in {local}")
+        return weights_path
+
+    from huggingface_hub import hf_hub_download
+
+    return Path(hf_hub_download(repo_id=str(path), filename="model.safetensors"))
 
 
 class TimeeClassifier:
@@ -82,15 +100,7 @@ class TimeeClassifier:
             device = _infer_device()
         device = torch.device(device) if isinstance(device, str) else device
 
-        local = Path(path)
-        if local.is_dir():
-            weights_path = local / "model.safetensors"
-            if not weights_path.exists():
-                raise FileNotFoundError(f"model.safetensors not found in {local}")
-        else:
-            from huggingface_hub import hf_hub_download
-
-            weights_path = hf_hub_download(repo_id=str(path), filename="model.safetensors")
+        weights_path = _resolve_weights_path(path)
 
         from safetensors.torch import load_file
 
@@ -182,6 +192,25 @@ class TimeeClassifier:
             "training context alone exceeds available memory."
         )
 
+    def _predict_probabilities(
+        self,
+        X_train: np.ndarray,
+        y_enc: np.ndarray,
+        X_test: np.ndarray,
+        n_classes: int,
+        batch_fn: Callable,
+    ) -> np.ndarray:
+        """Return (n_test, n_classes) probabilities, averaged over the preprocessing ensemble."""
+        x_transforms: list[EnsembleTransform | None] = self.transforms or [None]
+
+        with torch.no_grad():
+            all_probs = []
+            for x_transform in x_transforms:
+                X_tr_t, X_te_t = x_transform(X_train, X_test) if x_transform else (X_train, X_test)
+                all_probs.append(self._predict_batched(X_tr_t, y_enc, X_te_t, n_classes, batch_fn))
+
+        return np.mean(all_probs, axis=0)
+
     def predict(
         self,
         X_train: np.ndarray,
@@ -189,6 +218,11 @@ class TimeeClassifier:
         X_test: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Classify test samples given labeled training examples.
+
+        Multivariate input (``n_channels > 1``) is handled channel-independently: each
+        channel is classified separately and the per-channel class probabilities are
+        averaged. For a jointly-modeled multivariate approach with attention-based variate
+        pooling, use :class:`TimeeMultivariateClassifier`.
 
         Args:
             X_train: Training time series, shape (n_train, n_channels, seq_len).
@@ -204,13 +238,124 @@ class TimeeClassifier:
         y_enc = le.transform(y_train)
 
         batch_fn = self._forward_ovr if n_classes > self.max_classes else self._forward
-        x_transforms: list[EnsembleTransform | None] = self.transforms or [None]
 
-        with torch.no_grad():
-            all_probs = []
-            for x_transform in x_transforms:
-                X_tr_t, X_te_t = x_transform(X_train, X_test) if x_transform else (X_train, X_test)
-                all_probs.append(self._predict_batched(X_tr_t, y_enc, X_te_t, n_classes, batch_fn))
+        n_channels = X_train.shape[1]
+        if n_channels == 1:
+            probabilities = self._predict_probabilities(
+                X_train, y_enc, X_test, n_classes, batch_fn
+            )
+        else:
+            # Channel-independent: classify each channel, average the class probabilities.
+            channel_probs = [
+                self._predict_probabilities(
+                    X_train[:, c : c + 1, :], y_enc, X_test[:, c : c + 1, :], n_classes, batch_fn
+                )
+                for c in range(n_channels)
+            ]
+            probabilities = np.mean(channel_probs, axis=0)
 
-        probabilities = np.mean(all_probs, axis=0)
+        return le.inverse_transform(np.argmax(probabilities, axis=1)), probabilities
+
+
+class TimeeMultivariateClassifier(TimeeClassifier):
+    """Multivariate TIMEE classifier using attention-based variate pooling.
+
+    Wraps :class:`~timee.model.mv_adapter.TimeeMultivariateModel`, which encodes each
+    variate through the shared univariate encoder and fuses the per-variate representations
+    with learned attention pooling before the in-context phase — modeling the channels
+    jointly rather than independently.
+
+    This requires a checkpoint **fine-tuned for multivariate pooling** (i.e. one that
+    contains trained ``variate_pool`` weights); the released univariate checkpoint has none.
+    For zero-shot multivariate classification without fine-tuning, use
+    :class:`TimeeClassifier`, which averages per-channel predictions.
+
+    Usage::
+
+        from timee import TimeeMultivariateClassifier
+
+        clf = TimeeMultivariateClassifier.from_pretrained()
+        predictions, probabilities = clf.predict(X_train, y_train, X_test)
+    """
+
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        device: torch.device,
+        transforms: list[EnsembleTransform] | None = None,
+    ) -> None:
+        if not isinstance(model, TimeeMultivariateModel):
+            raise TypeError(
+                "TimeeMultivariateClassifier requires a TimeeMultivariateModel, got "
+                f"{type(model).__name__}. Use TimeeClassifier for univariate models."
+            )
+        super().__init__(model=model, device=device, transforms=transforms)
+
+    @classmethod
+    def from_pretrained(
+        cls,
+        path: Union[str, Path] = "liamsbhoo/timee-multivariate",
+        device: Union[str, torch.device, None] = None,
+        use_ensemble: bool = True,
+    ) -> "TimeeMultivariateClassifier":
+        """Load a pretrained multivariate (variate-pooling) classifier.
+
+        Args:
+            path: Local directory containing ``model.safetensors``, or a HuggingFace Hub
+                  repo ID (e.g. ``"liamsbhoo/timee-multivariate"``). Must be a checkpoint
+                  fine-tuned for multivariate pooling (i.e. containing ``variate_attn_pool``
+                  weights). Defaults to the official multivariate checkpoint.
+            device: Torch device for inference. Defaults to auto-detection (CUDA > MPS > CPU).
+            use_ensemble: If True (default), use the 4-member preprocessing ensemble.
+
+        Returns:
+            A ready-to-use TimeeMultivariateClassifier.
+
+        Raises:
+            ValueError: if the checkpoint contains no trained ``variate_pool`` weights.
+        """
+        if device is None:
+            device = _infer_device()
+        device = torch.device(device) if isinstance(device, str) else device
+
+        weights_path = _resolve_weights_path(path)
+
+        from safetensors.torch import load_file
+
+        model = TimeeMultivariateModel()
+        missing_keys, _ = model.load_state_dict(load_file(weights_path), strict=False)
+        if any(k.startswith("variate_attn_pool") for k in missing_keys):
+            raise ValueError(
+                f"Checkpoint at {path!r} has no trained 'variate_attn_pool' weights, so it "
+                "cannot be used for attention-based variate pooling. Provide a checkpoint "
+                "fine-tuned for multivariate pooling, or use TimeeClassifier for zero-shot "
+                "channel-independent classification."
+            )
+
+        transforms = default_ensemble_transforms() if use_ensemble else None
+        return cls(model=model, device=device, transforms=transforms)
+
+    def predict(
+        self,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_test: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Classify multivariate test samples via joint variate pooling.
+
+        Args:
+            X_train: Training time series, shape (n_train, n_channels, seq_len).
+            y_train: Training labels, shape (n_train,). Any hashable label type.
+            X_test: Test time series, shape (n_test, n_channels, seq_len).
+
+        Returns:
+            predictions: Predicted class labels, shape (n_test,). Same dtype as y_train.
+            probabilities: Class probability estimates, shape (n_test, n_classes).
+        """
+        le = LabelEncoder().fit(y_train)
+        n_classes = len(le.classes_)
+        y_enc = le.transform(y_train)
+
+        batch_fn = self._forward_ovr if n_classes > self.max_classes else self._forward
+        probabilities = self._predict_probabilities(X_train, y_enc, X_test, n_classes, batch_fn)
         return le.inverse_transform(np.argmax(probabilities, axis=1)), probabilities
