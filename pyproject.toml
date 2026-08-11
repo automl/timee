@@ -46,6 +46,10 @@ packages = ["src/timee"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "network: tests that download the released checkpoint from HuggingFace Hub (deselect with '-m \"not network\"')",
+]
+addopts = "-m 'not network'"
 
 [tool.ruff]
 line-length = 100

@@ -37,12 +37,13 @@ class TimeeMultivariateModel(TimeeModel):
     halves the chunk size on CUDA OOM until falling back to serial (m_chunk=1).
 
     Load a pretrained UV checkpoint with strict=False, then fine-tune
-    variate_pool + ICL block + decoder on multivariate data.
+    variate_attn_pool + ICL block + decoder on multivariate data.
     """
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.variate_pool = VariateAttentionPool(self.num_cls_tokens, self.d_model)
+        self.variate_attn_pool = VariateAttentionPool(self.num_cls_tokens, self.d_model)
+        self.icl_repr_ln = nn.LayerNorm(self.num_cls_tokens * self.d_model)
 
     def _encode_variate_chunk(
         self,
@@ -173,7 +174,8 @@ class TimeeMultivariateModel(TimeeModel):
         if cls_BNMCD is None:
             raise RuntimeError("CUDA OOM even with a single variate per chunk -- reduce batch size")
 
-        row_repr_BNDc = self.variate_pool(cls_BNMCD)
+        row_repr_BNDc = self.variate_attn_pool(cls_BNMCD)
+        row_repr_BNDc = self.icl_repr_ln(row_repr_BNDc)
 
         icl_mask = torch.ones((B, N, N), device=x.device, dtype=torch.bool)
         icl_mask[:, :, n_train:] = False
