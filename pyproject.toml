@@ -1,10 +1,10 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
 name = "timee-ts"
-version = "0.1.0"
+dynamic = ["version"]
 description = "End-to-end time series classification via in-context learning"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,6 +40,12 @@ dev = [
     "aeon",
     "matplotlib",
 ]
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/timee/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/timee"]

@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # hatch-vcs needs the full history + tags to derive the version
       - uses: astral-sh/setup-uv@v5
       - run: uv build
       - uses: actions/upload-artifact@v4
